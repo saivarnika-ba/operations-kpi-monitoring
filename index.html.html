@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Operational KPI Monitoring Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070D14;--surface:#0D1520;--card:#111E2E;--card2:#162030;
+  --border:rgba(0,212,255,0.1);--border2:rgba(0,212,255,0.22);
+  --cyan:#00D4FF;--green:#00FF88;--amber:#FFB800;--red:#FF4D4D;--purple:#B06EFF;
+  --text:#D9EDF7;--muted:#4A6B80;--dim:#1E3448;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+
+/* scanning grid bg */
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(0,212,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,0.02) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;
+  background:radial-gradient(ellipse 700px 500px at 20% 30%,rgba(0,212,255,0.05),transparent 65%),
+             radial-gradient(ellipse 500px 400px at 80% 70%,rgba(176,110,255,0.04),transparent 65%);
+  pointer-events:none;z-index:0;}
+
+.wrap{position:relative;z-index:1;padding:1.8rem 2rem;}
+
+/* HEADER */
+.hdr{display:flex;justify-content:space-between;align-items:center;padding-bottom:1.2rem;margin-bottom:1.5rem;border-bottom:1px solid var(--border);}
+.hdr-left .tag{font-family:'IBM Plex Mono',monospace;font-size:.6rem;letter-spacing:.2em;color:var(--cyan);background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.2);padding:.25rem .7rem;border-radius:3px;margin-bottom:.6rem;display:inline-block;}
+.hdr-left h1{font-size:1.35rem;font-weight:700;line-height:1.2;color:var(--text);}
+.hdr-left .sub{font-size:.78rem;color:var(--muted);margin-top:.3rem;}
+.hdr-right{display:flex;flex-direction:column;align-items:flex-end;gap:.5rem;}
+.status-row{display:flex;gap:.7rem;}
+.status-badge{display:flex;align-items:center;gap:.4rem;padding:.3rem .8rem;border-radius:3px;font-family:'IBM Plex Mono',monospace;font-size:.65rem;font-weight:500;}
+.st-green{background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.25);color:var(--green);}
+.st-amber{background:rgba(255,184,0,0.08);border:1px solid rgba(255,184,0,0.25);color:var(--amber);}
+.blink{width:5px;height:5px;border-radius:50%;animation:blink 1.5s infinite;}
+.blink.g{background:var(--green);}
+.blink.a{background:var(--amber);}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* KPI ROW */
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:.8rem;margin-bottom:1.5rem;}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:1rem .9rem;position:relative;overflow:hidden;opacity:0;transform:translateY(12px);transition:all .5s;}
+.kpi.show{opacity:1;transform:translateY(0);}
+.kpi::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--kc),transparent);}
+.kpi-lbl{font-size:.55rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;}
+.kpi-num{font-family:'IBM Plex Mono',monospace;font-size:1.55rem;font-weight:500;color:var(--kc,var(--cyan));line-height:1;}
+.kpi-change{font-size:.62rem;margin-top:.3rem;}
+.up{color:var(--green);}
+.dn{color:var(--red);}
+.nt{color:var(--muted);}
+
+/* MAIN GRID */
+.row{display:grid;gap:1rem;margin-bottom:1rem;}
+.row-2-1{grid-template-columns:2fr 1fr;}
+.row-3{grid-template-columns:1fr 1fr 1fr;}
+.row-2{grid-template-columns:1fr 1fr;}
+
+/* CARD */
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:1.3rem;opacity:0;transform:translateY(12px);transition:all .5s;}
+.card.show{opacity:1;transform:translateY(0);}
+.card:hover{border-color:var(--border2);box-shadow:0 0 20px rgba(0,212,255,0.04);}
+.ctitle{font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:var(--cyan);margin-bottom:1.1rem;display:flex;align-items:center;gap:.5rem;}
+
+/* PROGRESS bars (horizontal) */
+.prog-list{display:flex;flex-direction:column;gap:.9rem;}
+.prog-item{}
+.prog-header{display:flex;justify-content:space-between;font-size:.7rem;margin-bottom:.35rem;}
+.prog-label{color:var(--muted);}
+.prog-val{font-family:'IBM Plex Mono',monospace;color:var(--text);}
+.prog-track{height:7px;background:var(--dim);border-radius:4px;overflow:hidden;}
+.prog-fill{height:100%;border-radius:4px;width:0;transition:width 1.2s ease;}
+
+/* SPARKLINE bars (vertical) */
+.spark-wrap{display:flex;align-items:flex-end;gap:5px;height:80px;}
+.spark-bar{flex:1;border-radius:3px 3px 0 0;min-height:4px;transition:height 1s ease;}
+
+/* GAUGE */
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;gap:.5rem;}
+.gauge-svg{}
+.gauge-label{font-size:.65rem;color:var(--muted);text-align:center;}
+
+/* SLA TABLE */
+.sla-table{width:100%;border-collapse:collapse;font-size:.72rem;}
+.sla-table th{padding:.4rem .6rem;text-align:left;color:var(--muted);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid var(--border);}
+.sla-table td{padding:.55rem .6rem;border-bottom:1px solid rgba(0,212,255,0.04);font-family:'IBM Plex Mono',monospace;}
+.rag{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.4rem;}
+.rag.G{background:var(--green);box-shadow:0 0 6px var(--green);}
+.rag.A{background:var(--amber);box-shadow:0 0 6px var(--amber);}
+.rag.R{background:var(--red);box-shadow:0 0 6px var(--red);}
+
+/* MTD QTD boxes */
+.ti-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;}
+.ti-box{background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:.8rem;text-align:center;}
+.ti-val{font-family:'IBM Plex Mono',monospace;font-size:1.2rem;font-weight:500;color:var(--cyan);}
+.ti-lbl{font-size:.6rem;color:var(--muted);margin-top:.2rem;letter-spacing:.08em;}
+
+/* TREND LINE SVG */
+.trend-svg{width:100%;height:90px;}
+
+/* INSIGHT */
+.insight{background:rgba(0,212,255,0.05);border:1px solid rgba(0,212,255,0.15);border-left:3px solid var(--cyan);border-radius:0 6px 6px 0;padding:.75rem .9rem;margin-top:.9rem;font-size:.75rem;color:#7DD3F5;line-height:1.6;}
+.insight b{color:var(--text);display:block;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;margin-bottom:.25rem;}
+
+.footer{margin-top:1.5rem;padding-top:.9rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:.65rem;color:var(--muted);}
+.footer a{color:var(--cyan);text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-left">
+    <div class="tag">github.com/saivarnika/kpi-monitoring</div>
+    <h1>Operational KPI Monitoring &amp;<br>Process Quality Dashboard</h1>
+    <div class="sub">Power BI · DAX Time-Intelligence · SQL · Excel · Root Cause Analysis · 2,000+ records</div>
+  </div>
+  <div class="hdr-right">
+    <div class="status-row">
+      <div class="status-badge st-green"><span class="blink g"></span> Quality Score: 94%</div>
+      <div class="status-badge st-amber"><span class="blink a"></span> Error Rate: −72%</div>
+    </div>
+    <div style="font-size:.65rem;color:var(--muted)">Automated refresh · Replaced 4 manual Excel reports</div>
+  </div>
+</div>
+
+<!-- KPI STRIP -->
+<div class="kpi-row">
+  <div class="kpi" style="--kc:var(--cyan)">
+    <div class="kpi-lbl">Quality Score</div>
+    <div class="kpi-num" data-t="94" data-s="%">0%</div>
+    <div class="kpi-change up">↑ from 82% baseline</div>
+  </div>
+  <div class="kpi" style="--kc:var(--green)">
+    <div class="kpi-lbl">SLA Compliance</div>
+    <div class="kpi-num" data-t="96.4" data-s="%" data-d="1">0%</div>
+    <div class="kpi-change up">↑ 11.2% improvement</div>
+  </div>
+  <div class="kpi" style="--kc:var(--amber)">
+    <div class="kpi-lbl">Avg Turnaround</div>
+    <div class="kpi-num" data-t="3.2" data-s="h" data-d="1">0h</div>
+    <div class="kpi-change up">↓ from 5.8h baseline</div>
+  </div>
+  <div class="kpi" style="--kc:var(--red)">
+    <div class="kpi-lbl">Error Rate</div>
+    <div class="kpi-num" data-t="3.1" data-s="%" data-d="1">0%</div>
+    <div class="kpi-change up">↓ 72% reduction</div>
+  </div>
+  <div class="kpi" style="--kc:var(--purple)">
+    <div class="kpi-lbl">Records Tracked</div>
+    <div class="kpi-num" data-t="2140">0</div>
+    <div class="kpi-change nt">Weekly volume</div>
+  </div>
+  <div class="kpi" style="--kc:var(--green)">
+    <div class="kpi-lbl">Manual Effort Saved</div>
+    <div class="kpi-num" data-t="40" data-s="%">0%</div>
+    <div class="kpi-change up">4 reports automated</div>
+  </div>
+</div>
+
+<!-- ROW 1 -->
+<div class="row row-2-1">
+  <!-- Quality score trend -->
+  <div class="card">
+    <div class="ctitle">📈 Quality Score Trend — Monthly (Baseline → Current)</div>
+    <svg class="trend-svg" viewBox="0 0 520 90" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="qG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#00FF88" stop-opacity=".25"/>
+          <stop offset="100%" stop-color="#00FF88" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="tG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#FF4D4D" stop-opacity=".2"/>
+          <stop offset="100%" stop-color="#FF4D4D" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <!-- grid -->
+      <line x1="30" y1="10" x2="30" y2="75" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+      <line x1="30" y1="75" x2="510" y2="75" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+      <line x1="30" y1="40" x2="510" y2="40" stroke="rgba(255,255,255,0.03)" stroke-width="1" stroke-dasharray="3,3"/>
+      <!-- labels -->
+      <text x="22" y="78" font-size="7" fill="#4A6B80" text-anchor="end" font-family="IBM Plex Mono">80</text>
+      <text x="22" y="44" font-size="7" fill="#4A6B80" text-anchor="end" font-family="IBM Plex Mono">90</text>
+      <text x="22" y="14" font-size="7" fill="#4A6B80" text-anchor="end" font-family="IBM Plex Mono">95</text>
+      <!-- month labels -->
+      <text x="60" y="86" font-size="7" fill="#4A6B80" text-anchor="middle" font-family="IBM Plex Sans">M1</text>
+      <text x="130" y="86" font-size="7" fill="#4A6B80" text-anchor="middle" font-family="IBM Plex Sans">M2</text>
+      <text x="200" y="86" font-size="7" fill="#4A6B80" text-anchor="middle" font-family="IBM Plex Sans">M3</text>
+      <text x="270" y="86" font-size="7" fill="#4A6B80" text-anchor="middle" font-family="IBM Plex Sans">M4</text>
+      <text x="340" y="86" font-size="7" fill="#4A6B80" text-anchor="middle" font-family="IBM Plex Sans">M5</text>
+      <text x="410" y="86" font-size="7" fill="#4A6B80" text-anchor="middle" font-family="IBM Plex Sans">M6</text>
+      <text x="480" y="86" font-size="7" fill="#4A6B80" text-anchor="middle" font-family="IBM Plex Sans">M7</text>
+      <!-- quality area -->
+      <path d="M60,68 L130,62 L200,52 L270,38 L340,26 L410,18 L480,13 L480,75 L60,75 Z" fill="url(#qG)" opacity=".7"/>
+      <!-- quality line -->
+      <polyline points="60,68 130,62 200,52 270,38 340,26 410,18 480,13"
+        fill="none" stroke="#00FF88" stroke-width="2" stroke-linejoin="round"
+        stroke-dasharray="500" stroke-dashoffset="500"
+        style="animation:dl 1.8s ease forwards .5s"/>
+      <!-- error rate area -->
+      <path d="M60,30 L130,34 L200,44 L270,56 L340,64 L410,68 L480,72 L480,75 L60,75 Z" fill="url(#tG)" opacity=".4"/>
+      <polyline points="60,30 130,34 200,44 270,56 340,64 410,68 480,72"
+        fill="none" stroke="#FF4D4D" stroke-width="1.5" stroke-linejoin="round" stroke-dasharray="4,3" opacity=".6"/>
+      <!-- dots quality -->
+      <circle cx="60" cy="68" r="3" fill="#00FF88" stroke="#070D14" stroke-width="1.5"/>
+      <circle cx="480" cy="13" r="4" fill="#00FF88" stroke="#070D14" stroke-width="1.5"/>
+      <text x="480" y="8" font-size="7.5" fill="#00FF88" text-anchor="middle" font-family="IBM Plex Mono" font-weight="500">94%</text>
+      <text x="60" y="63" font-size="7.5" fill="#00FF88" text-anchor="middle" font-family="IBM Plex Mono">82%</text>
+      <!-- legend -->
+      <circle cx="350" cy="10" r="4" fill="#00FF88"/>
+      <text x="358" y="14" font-size="7" fill="#00FF88" font-family="IBM Plex Sans">Quality Score</text>
+      <line x1="390" y1="10" x2="400" y2="10" stroke="#FF4D4D" stroke-width="1.5" stroke-dasharray="3,2"/>
+      <text x="405" y="14" font-size="7" fill="#FF4D4D" font-family="IBM Plex Sans">Error Rate</text>
+    </svg>
+    <!-- Sparkline below -->
+    <div style="margin-top:.8rem">
+      <div style="font-size:.6rem;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4rem">Weekly Error Volume</div>
+      <div class="spark-wrap" id="spark1"></div>
+    </div>
+    <div class="insight"><b>Root Cause Finding</b>Error spikes correlated with Monday-morning batch processing. After implementing staggered batch scheduling (identified via decomposition analysis), error frequency dropped 72% within 6 weeks.</div>
+  </div>
+
+  <!-- Gauge -->
+  <div class="card">
+    <div class="ctitle">◎ SLA Compliance Gauge</div>
+    <div class="gauge-wrap">
+      <svg viewBox="0 0 160 100" width="200" height="130">
+        <defs>
+          <linearGradient id="gG" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#FF4D4D"/>
+            <stop offset="50%" stop-color="#FFB800"/>
+            <stop offset="100%" stop-color="#00FF88"/>
+          </linearGradient>
+        </defs>
+        <!-- track -->
+        <path d="M20,90 A60,60 0 0,1 140,90" fill="none" stroke="#1E3448" stroke-width="14" stroke-linecap="round"/>
+        <!-- fill -->
+        <path d="M20,90 A60,60 0 0,1 140,90" fill="none" stroke="url(#gG)" stroke-width="14" stroke-linecap="round"
+          stroke-dasharray="188.5" stroke-dashoffset="188.5"
+          style="transition:stroke-dashoffset 1.5s ease .5s" data-offset="7"/>
+        <!-- needle -->
+        <line x1="80" y1="90" x2="80" y2="35" stroke="#00D4FF" stroke-width="2" stroke-linecap="round"
+          style="transform-origin:80px 90px;transform:rotate(0deg);transition:transform 1.5s ease .5s" data-rotate="86"/>
+        <circle cx="80" cy="90" r="5" fill="#111E2E" stroke="#00D4FF" stroke-width="2"/>
+        <!-- labels -->
+        <text x="18" y="98" font-size="8" fill="#4A6B80" font-family="IBM Plex Mono">0%</text>
+        <text x="75" y="24" font-size="9" fill="#00D4FF" font-family="IBM Plex Mono" text-anchor="middle" font-weight="500">96.4%</text>
+        <text x="135" y="98" font-size="8" fill="#4A6B80" font-family="IBM Plex Mono" text-anchor="end">100%</text>
+      </svg>
+      <div class="gauge-label">SLA Compliance Rate<br><span style="color:var(--green);font-weight:600">Target: 95% · Current: 96.4%</span></div>
+    </div>
+    <div class="ti-grid" style="margin-top:1rem">
+      <div class="ti-box"><div class="ti-val" data-t="96.8" data-s="%" data-d="1">0%</div><div class="ti-lbl">MTD SLA</div></div>
+      <div class="ti-box"><div class="ti-val" data-t="95.9" data-s="%" data-d="1">0%</div><div class="ti-lbl">QTD SLA</div></div>
+      <div class="ti-box"><div class="ti-val" data-t="3.2" data-s="h" data-d="1">0h</div><div class="ti-lbl">Avg TAT</div></div>
+      <div class="ti-box"><div class="ti-val" data-t="97.2" data-s="%" data-d="1">0%</div><div class="ti-lbl">3M Rolling</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ROW 2 -->
+<div class="row row-3">
+  <!-- SLA by team -->
+  <div class="card">
+    <div class="ctitle">≡ SLA Compliance by Team · RAG Status</div>
+    <table class="sla-table">
+      <thead><tr><th>Team</th><th>SLA%</th><th>TAT (h)</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Alpha</td><td>98.2%</td><td>2.8</td><td><span class="rag G"></span>Green</td></tr>
+        <tr><td>Beta</td><td>96.1%</td><td>3.1</td><td><span class="rag G"></span>Green</td></tr>
+        <tr><td>Gamma</td><td>94.3%</td><td>4.2</td><td><span class="rag A"></span>Amber</td></tr>
+        <tr><td>Delta</td><td>91.8%</td><td>5.6</td><td><span class="rag R"></span>Red</td></tr>
+        <tr><td>Echo</td><td>97.5%</td><td>2.9</td><td><span class="rag G"></span>Green</td></tr>
+      </tbody>
+    </table>
+    <div class="insight" style="margin-top:.7rem"><b>Action</b>Delta team flagged for corrective review. Slicers in dashboard filter by team + time period dynamically using Power BI bookmarks.</div>
+  </div>
+
+  <!-- Progress bars -->
+  <div class="card">
+    <div class="ctitle">▊ KPI Achievement vs Target</div>
+    <div class="prog-list">
+      <div class="prog-item">
+        <div class="prog-header"><span class="prog-label">Quality Score</span><span class="prog-val">94% / 90% target</span></div>
+        <div class="prog-track"><div class="prog-fill" style="background:var(--green);--w:94%"></div></div>
+      </div>
+      <div class="prog-item">
+        <div class="prog-header"><span class="prog-label">SLA Compliance</span><span class="prog-val">96.4% / 95% target</span></div>
+        <div class="prog-track"><div class="prog-fill" style="background:var(--cyan);--w:96.4%"></div></div>
+      </div>
+      <div class="prog-item">
+        <div class="prog-header"><span class="prog-label">Error Rate Reduction</span><span class="prog-val">−72% / −50% target</span></div>
+        <div class="prog-track"><div class="prog-fill" style="background:var(--purple);--w:100%"></div></div>
+      </div>
+      <div class="prog-item">
+        <div class="prog-header"><span class="prog-label">Manual Effort Saved</span><span class="prog-val">40% / 30% target</span></div>
+        <div class="prog-track"><div class="prog-fill" style="background:var(--amber);--w:40%"></div></div>
+      </div>
+      <div class="prog-item">
+        <div class="prog-header"><span class="prog-label">Avg Turnaround Time</span><span class="prog-val">3.2h / 4h target</span></div>
+        <div class="prog-track"><div class="prog-fill" style="background:var(--cyan);--w:80%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DAX measures built -->
+  <div class="card">
+    <div class="ctitle">⚡ DAX Time-Intelligence Measures</div>
+    <div class="prog-list">
+      <div class="prog-item">
+        <div class="prog-header"><span class="prog-label">MTD Quality Score</span><span class="prog-val" style="color:var(--cyan)">96.8%</span></div>
+        <div class="prog-track"><div class="prog-fill" style="background:linear-gradient(90deg,var(--cyan),#7DD3F5);--w:96.8%"></div></div>
+      </div>
+      <div class="prog-item">
+        <div class="prog-header"><span class="prog-label">QTD SLA Rate</span><span class="prog-val" style="color:var(--green)">95.9%</span></div>
+        <div class="prog-track"><div class="prog-fill" style="background:var(--green);--w:95.9%"></div></div>
+      </div>
+      <div class="prog-item">
+        <div class="prog-header"><span class="prog-label">Rolling 3M Avg Err%</span><span class="prog-val" style="color:var(--amber)">3.6%</span></div>
+        <div class="prog-track"><div class="prog-fill" style="background:var(--amber);--w:3.6%"></div></div>
+      </div>
+      <div class="prog-item">
+        <div class="prog-header"><span class="prog-label">WoW Change</span><span class="prog-val" style="color:var(--green)">+1.2pp</span></div>
+        <div class="prog-track"><div class="prog-fill" style="background:var(--purple);--w:70%"></div></div>
+      </div>
+    </div>
+    <div class="insight"><b>Automation Impact</b>Scheduled Power BI refresh replaced 4 manual Excel reports. Saved ~3h/week of analyst time. All time-intelligence measures use DATESINPERIOD and CALCULATE.</div>
+  </div>
+</div>
+
+<div class="footer">
+  <div>Sai Varnika Devulapally · Business Analyst · <a href="http://linkedin.com/in/saivarnikadevulapally/">LinkedIn</a></div>
+  <div><a href="https://github.com/saivarnika/kpi-monitoring">github.com/saivarnika/kpi-monitoring</a> · Power BI · DAX · SQL · Excel</div>
+</div>
+</div>
+
+<style>@keyframes dl{to{stroke-dashoffset:0}}</style>
+<script>
+// counter
+function counter(){
+  document.querySelectorAll('[data-t]').forEach(el=>{
+    const t=parseFloat(el.dataset.t),s=el.dataset.s||'',d=parseInt(el.dataset.d||0);
+    let st=0;
+    const go=ts=>{
+      if(!st)st=ts;
+      const p=Math.min((ts-st)/1400,1),e=1-Math.pow(1-p,3);
+      el.textContent=(t*e).toFixed(d)+s;
+      if(p<1)requestAnimationFrame(go);
+    };
+    requestAnimationFrame(go);
+  });
+}
+// bars
+function bars(){
+  document.querySelectorAll('.prog-fill,.bar-fill').forEach(el=>{
+    const w=el.style.cssText.match(/--w:([^;]+)/)?.[1]||el.dataset.w||'0%';
+    setTimeout(()=>el.style.width=w,300);
+  });
+}
+// sparkline
+function spark(){
+  const data=[48,52,44,61,38,42,34,28,22,18,14,10,8,6];
+  const max=Math.max(...data);
+  const wrap=document.getElementById('spark1');
+  if(!wrap)return;
+  data.forEach((v,i)=>{
+    const b=document.createElement('div');
+    b.className='spark-bar';
+    const h=Math.round((v/max)*70);
+    const hue=i>8?'var(--green)':i>5?'var(--amber)':'var(--red)';
+    b.style.cssText=`height:4px;background:${hue};border-radius:3px 3px 0 0;transition:height 1s ease ${i*60}ms`;
+    wrap.appendChild(b);
+    setTimeout(()=>b.style.height=h+'px',200);
+  });
+}
+// gauge needle + arc
+function gauge(){
+  const arc=document.querySelector('[data-offset]');
+  if(arc){const offset=188.5*(1-0.964);arc.style.strokeDashoffset=offset;}
+  const needle=document.querySelector('[data-rotate]');
+  if(needle){needle.style.transform='rotate(86deg)';}
+}
+// show cards
+const obs=new IntersectionObserver(entries=>entries.forEach((e,i)=>{
+  if(e.isIntersecting)setTimeout(()=>e.target.classList.add('show'),i*70);
+}),{threshold:0.05});
+document.querySelectorAll('.card,.kpi').forEach(c=>obs.observe(c));
+
+window.addEventListener('load',()=>{setTimeout(()=>{counter();bars();spark();gauge();},300);});
+</script>
+</body>
+</html>
